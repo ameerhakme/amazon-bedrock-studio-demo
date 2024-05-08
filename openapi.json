@@ -1,0 +1,109 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+      "title": "Query API",
+      "version": "1.0.0",
+      "description": "API for querying databases"
+    },
+    "servers": [
+      {
+        "url": "https://xxxxx.execute-api.us-east-1.amazonaws.com/Prod",
+        "description": "API Gateway endpoint"
+      }
+    ],
+    "paths": {
+      "/query": {
+        "post": {
+          "summary": "Execute a query on the database",
+          "description": "Allows clients to execute a predefined query on the database.",
+          "operationId": "executeQuery",
+          "tags": [
+            "query"
+          ],
+          "requestBody": {
+            "description": "Query and database information",
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "example": "SELECT * FROM your_table LIMIT 10"
+                    },
+                    "database": {
+                      "type": "string",
+                      "example": "your_database_name"
+                    }
+                  },
+                  "required": [
+                    "query",
+                    "database"
+                  ]
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Query executed successfully",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "data": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Bad Request",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "500": {
+              "description": "Server Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "schemas": {
+        "Error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+  

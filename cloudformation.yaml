@@ -1,0 +1,255 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS CloudFormation template to set up an API Gateway with a Lambda function that queries Athena.
+
+Parameters:
+  S3OutputBucket:
+    Type: String
+    Description: S3 bucket name for storing Athena query results
+  S3DataBucket:
+    Type: String
+    Description: S3 bucket name containing the data used by Athena
+
+Resources:
+  QueryAthenaLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonAthenaFullAccess
+      Policies:
+        - PolicyName: AthenaQueryPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${S3OutputBucket}/*"
+                  - !Sub "arn:aws:s3:::${S3OutputBucket}"
+        - PolicyName: S3DataBucketAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:Abort*
+                  - s3:DeleteObject*
+                  - s3:GetBucket*
+                  - s3:GetObject*
+                  - s3:List*
+                  - s3:PutObject
+                  - s3:PutObjectLegalHold
+                  - s3:PutObjectRetention
+                  - s3:PutObjectTagging
+                  - s3:PutObjectVersionTagging
+                Resource:
+                  - !Sub "arn:aws:s3:::${S3DataBucket}"
+                  - !Sub "arn:aws:s3:::${S3DataBucket}/*"
+
+  QueryAthenaLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.lambda_handler
+      Role: !GetAtt QueryAthenaLambdaExecutionRole.Arn
+      Code:
+        ZipFile: !Sub |
+          import os
+          import boto3
+          import time
+          import json
+          # Initialize the Athena client
+          athena_client = boto3.client('athena')
+          # Initialize the S3 client
+          s3_client = boto3.client('s3')
+          def lambda_handler(event, context):
+              # Extract the SQL query from the API call
+              try:
+                  # Check if the event body is a string and convert it to a dictionary
+                  if isinstance(event.get('body'), str):
+                      body = json.loads(event.get('body'))
+                  else:
+                      body = event.get('body')  # In case the body is already a dict
+                  if not body:
+                      raise ValueError("The body of the event is None or empty.")
+                  query = body['query']
+                  database = body['database']  # You can also pass the database as a parameter
+              except KeyError as e:
+                  return {
+                      'statusCode': 400,
+                      'body': json.dumps(f'The JSON body must contain the key: {str(e)}')
+                  }
+              except ValueError as e:
+                  return {
+                      'statusCode': 400,
+                      'body': json.dumps(f'An error occurred: {str(e)}')
+                  }
+              except Exception as e:
+                  return {
+                      'statusCode': 400,
+                      'body': json.dumps(f'An unexpected error occurred: {str(e)}')
+                  }
+              # Define the S3 bucket location for query results
+              s3_output = f"s3://{os.environ['S3_OUTPUT_BUCKET']}/"
+              # Start the Athena query execution
+              try:
+                  response = athena_client.start_query_execution(
+                      QueryString=query,
+                      QueryExecutionContext={
+                          'Database': database
+                      },
+                      ResultConfiguration={
+                          'OutputLocation': s3_output
+                      }
+                  )
+                  # Get the query execution ID
+                  query_execution_id = response['QueryExecutionId']
+              except Exception as e:
+                  return {
+                      'statusCode': 400,
+                      'body': json.dumps(f'Failed to start query execution: {str(e)}')
+                  }
+              # Function to check if the query is still running
+              def is_query_still_running(exec_id):
+                  resp = athena_client.get_query_execution(QueryExecutionId=exec_id)
+                  state = resp['QueryExecution']['Status']['State']
+                  return state in ['QUEUED', 'RUNNING']
+              # Poll the status of the submitted query execution
+              while is_query_still_running(query_execution_id):
+                  print('Query is still running...')
+                  time.sleep(5)  # Wait for 5 seconds before checking again
+              # Once the query is no longer running, check if it was successful
+              try:
+                  final_response = athena_client.get_query_execution(QueryExecutionId=query_execution_id)
+                  if final_response['QueryExecution']['Status']['State'] == 'SUCCEEDED':
+                      print('Query execution succeeded, output location:')
+                      output_location = final_response['QueryExecution']['ResultConfiguration']['OutputLocation']
+                      # Parse the output location to get the bucket and key
+                      output_bucket, output_key = parse_s3_url(output_location)
+                      # Fetch the result from S3
+                      result = s3_client.get_object(Bucket=output_bucket, Key=output_key)
+                      result_content = result['Body'].read().decode('utf-8')
+                      return {
+                          'statusCode': 200,
+                          'body': json.dumps({
+                              'message': 'Query execution succeeded.',
+                              'data': result_content
+                          })
+                      }
+                  elif final_response['QueryExecution']['Status']['State'] == 'FAILED':
+                      return {
+                          'statusCode': 400,
+                          'body': json.dumps('Query execution failed, check Athena history for the query failure reason.')
+                      }
+                  else:
+                      return {
+                          'statusCode': 400,
+                          'body': json.dumps('Query execution cancelled.')
+                      }
+              except Exception as e:
+                  return {
+                      'statusCode': 400,
+                      'body': json.dumps(f'Failed to get query execution status: {str(e)}')
+                  }
+          # Helper function to parse S3 URL
+          def parse_s3_url(url):
+              if url.startswith('s3://'):
+                  url = url[5:]
+                  bucket, key = url.split('/', 1)
+                  return bucket, key
+              raise ValueError("Invalid S3 URL")
+
+          # Lambda function code remains the same
+      Runtime: python3.8
+      Timeout: 30
+      Environment:
+        Variables:
+          S3_OUTPUT_BUCKET: !Ref S3OutputBucket
+
+  QueryAthenaApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: QueryAthenaApi
+
+  QueryAthenaResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt QueryAthenaApi.RootResourceId
+      PathPart: query
+      RestApiId: !Ref QueryAthenaApi
+
+  QueryAthenaMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: POST
+      ResourceId: !Ref QueryAthenaResource
+      RestApiId: !Ref QueryAthenaApi
+      AuthorizationType: NONE
+      ApiKeyRequired: true
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${QueryAthenaLambdaFunction.Arn}/invocations
+      MethodResponses:
+        - StatusCode: 200
+
+  QueryAthenaLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref QueryAthenaLambdaFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${QueryAthenaApi}/*/*/*
+
+  QueryAthenaApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - QueryAthenaMethod
+    Properties:
+      RestApiId: !Ref QueryAthenaApi
+
+  QueryAthenaApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      StageName: Prod
+      RestApiId: !Ref QueryAthenaApi
+      DeploymentId: !Ref QueryAthenaApiDeployment
+
+  QueryAthenaApiUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      UsagePlanName: QueryAthenaUsagePlan
+      ApiStages:
+        - ApiId: !Ref QueryAthenaApi
+          Stage: !Ref QueryAthenaApiStage
+
+  QueryAthenaApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    DependsOn:
+      - QueryAthenaApiUsagePlan
+    Properties:
+      Enabled: true
+
+  QueryAthenaUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref QueryAthenaApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref QueryAthenaApiUsagePlan
+
+Outputs:
+  QueryAthenaApiUrl:
+    Description: "URL of the API Gateway endpoint"
+    Value: !Sub https://${QueryAthenaApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/query
+
+  QueryAthenaApiKey:
+    Description: "API Key for the Query Athena API"
+    Value: !Ref QueryAthenaApiKey

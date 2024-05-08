@@ -5,8 +5,8 @@ This project sets up an AWS API Gateway with a Lambda function that allows you t
 ## Description
 
 The Athena Query API provides a convenient way to execute SQL queries on data stored in Amazon S3 using Amazon Athena. By leveraging the power of Athena, you can perform ad-hoc queries, generate reports, and analyze large datasets efficiently. This project simplifies the process of querying Athena by providing a serverless API that can be easily integrated into your applications.
-
 ## Architecture
+![Architecture Diagram](assets/arch-diagram.png "Architecture of the Athena Query API")
 
 The CloudFormation template provisions the following resources:
 - An AWS Lambda function to execute Athena queries

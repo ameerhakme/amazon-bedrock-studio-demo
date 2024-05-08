@@ -43,7 +43,15 @@ The CloudFormation template provisions the following resources:
    ```
 4. Once the stack creation is complete, retrieve the API Gateway endpoint URL from the stack outputs:
    ```
-   aws cloudformation describe-stacks --stack-name athena-query-api --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text
+   aws cloudformation describe-stacks --stack-name athena-query-api --query 'Stacks[0].Outputs[?OutputKey==`QueryAthenaApiUrl`].OutputValue' --output text
+   ```
+5. Now let's retrieve the API Key ID 
+   ```
+   aws cloudformation describe-stacks --stack-name athena-query-api --query 'Stacks[0].Outputs[?OutputKey==`QueryAthenaApiKey`].OutputValue' --output text
+   ```
+6. Using the retrived ID let's get the API key Value 
+   ```
+   aws apigateway get-api-key --api-key <QueryAthenaApiKeyValue> --include-value --query 'value' --output text
    ```
 
 ## Usage
@@ -64,8 +72,7 @@ Here's an example using cURL:
 curl --header "x-api-key:<your API Key Here>" https://<api-gateway-endpoint>.execute-api.us-east-1.amazonaws.com/Prod/query --data '{"query":"SELECT MAX(temperature) AS max_temp FROM iot_device_metrics WHERE device_id = 1009","database":"iot_ops_glue_db"}'
 ```
 
-Make sure to replace `<api-gateway-endpoint>` with the actual API Gateway endpoint URL.
-
+Make sure to replace `<api-gateway-endpoint>` with the actual API Gateway endpoint URL and `<your API Key Here>`  with the API key value obtained from step 6 in the deployment process.
 ## Integration with Amazon Bedrock Studio
 
 1. Login to your Amazon Bedrock Studio account.
@@ -79,6 +86,7 @@ Make sure to replace `<api-gateway-endpoint>` with the actual API Gateway endpoi
    - Key value: Add the value of the API key. You can get the value from the AWS console or ask your admin for the key.
 7. Click "Create".
 8. Now create the app by clicking on "Create app".
+9. Select the LLM model that you would like to experiment with 
 9. Add the following system prompt (feel free to modify as you see fit):
    ```
    Data Query Master is fine-tuned to not only generate SQL queries for Amazon Athena but also to execute via the provided API endpoint. It will send the SQL query to the endpoint (https://<api-gateway-endpoint>/query), including the method to construct the request with necessary parameters, headers, and the appropriate payload. You will always send the SQL query to the endpoint (https://<api-gateway-endpoint>/query). You will use iot_ops_glue_db as the name of the database instead of default. Here is the schema:

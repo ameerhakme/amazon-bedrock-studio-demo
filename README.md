@@ -1,6 +1,6 @@
-# Athena Query API
+# Athena Query API for GenAI with Amazon Bedrock Studio
 
-This project sets up an AWS API Gateway with a Lambda function that allows you to execute SQL queries on Amazon Athena and retrieve the results. You can use the API Gateway to interact from Amazon Bedrock Studio and build your text-to-SQL agent.
+This project sets up an AWS API Gateway with a Lambda function that allows you to execute SQL queries on Amazon Athena and retrieve the results. You can use the API Gateway to interact with Amazon Bedrock Studio and build your text-to-SQL agent using generative AI capabilities.
 
 ## Description
 
@@ -73,8 +73,11 @@ curl --header "x-api-key:<your API Key Here>" https://<api-gateway-endpoint>.exe
 ```
 
 Make sure to replace `<api-gateway-endpoint>` with the actual API Gateway endpoint URL and `<your API Key Here>`  with the API key value obtained from step 6 in the deployment process.
-## Integration with Amazon Bedrock Studio
 
+## Integration with Amazon Bedrock Studio
+Before proceeding with the integration steps, ensure that Amazon Bedrock Studio is set up in your AWS account. If you are an administrator, follow the AWS documentation to create and configure an Amazon Bedrock Studio workspace from the AWS console: [Create an Amazon Bedrock Studio workspace](https://docs.aws.amazon.com/bedrock/latest/userguide/administer-create-workspace.html).
+
+Once Amazon Bedrock Studio is set up, follow these steps to integrate the Athena Query API:
 1. Login to your Amazon Bedrock Studio account.
 2. Create a new project by entering a project name and a description.
 3. Access the newly created project and click on "Create new component".

@@ -29,7 +29,7 @@ The CloudFormation template provisions the following resources:
 ## Deployment
 1. Clone the repository:
    ```
-   git clone https://github.com/your-repo/athena-query-api.git
+   git clone https://github.com/ameerhakme/amazon-bedrock-studio-demo.git
    cd athena-query-api
    ```
 2. Run the following AWS CLI command to create the CloudFormation stack:
@@ -61,15 +61,15 @@ The CloudFormation template provisions the following resources:
    ```json
    {
      "query": "SELECT * FROM your_table LIMIT 10",
-     "database": "DATABASENAME"
+     "database": "database_name"
    }
    ```
-   Replace `your_table` with the name of the table you want to query.
+   Replace `your_table` with the name of the table you want to query. Also replace the `database_name`
 3. The API will execute the Athena query and return the results in the response body.
 
 Here's an example using cURL:
 ```bash
-curl --header "x-api-key:<your API Key Here>" https://<api-gateway-endpoint>.execute-api.us-east-1.amazonaws.com/Prod/query --data '{"query":"SELECT MAX(temperature) AS max_temp FROM iot_device_metrics WHERE device_id = 1009","database":"iot_ops_glue_db"}'
+curl --header "x-api-key:<your API Key Here>" https://<api-gateway-endpoint>.execute-api.us-east-1.amazonaws.com/Prod/query --data '{"query":"SELECT MAX(colums) AS x FROM your_table WHERE y = xxx","database":"<database_name>"}'
 ```
 
 Make sure to replace `<api-gateway-endpoint>` with the actual API Gateway endpoint URL and `<your API Key Here>`  with the API key value obtained from step 6 in the deployment process.
@@ -82,7 +82,7 @@ Once Amazon Bedrock Studio is set up, follow these steps to integrate the Athena
 2. Create a new project by entering a project name and a description.
 3. Access the newly created project and click on "Create new component".
 4. Select "Create a new function" and add the function name.
-5. Enter the schema provided in the `openapi.json` file. Make sure you modify the API Gateway endpoint and use the one created from the CloudFormation template.
+5. Enter the schema provided in the [openapi.json](/openapi.json) file. Make sure you modify the API Gateway endpoint and use the one created from the CloudFormation template.
 6. Select "Authenticate using API Keys" and choose the following:
    - Key sent in Header
    - Key name: `x-api-key`
@@ -92,15 +92,15 @@ Once Amazon Bedrock Studio is set up, follow these steps to integrate the Athena
 9. Select the LLM model that you would like to experiment with 
 9. Add the following system prompt (feel free to modify as you see fit):
    ```
-   Data Query Master is fine-tuned to not only generate SQL queries for Amazon Athena but also to execute via the provided API endpoint. It will send the SQL query to the endpoint (https://<api-gateway-endpoint>/query), including the method to construct the request with necessary parameters, headers, and the appropriate payload. You will always send the SQL query to the endpoint (https://<api-gateway-endpoint>/query). You will use iot_ops_glue_db as the name of the database instead of default. Here is the schema:
+   Data Query Master is fine-tuned to not only generate SQL queries for Amazon Athena but also to execute via the provided API endpoint. It will send the SQL query to the endpoint (https://<api-gateway-endpoint>/query), including the method to construct the request with necessary parameters, headers, and the appropriate payload. You will always send the SQL query to the endpoint (https://<api-gateway-endpoint>/query). You will use table_name as the name of the database instead of default. Here is the schema: 
 
-   CREATE EXTERNAL TABLE `iot_device_metrics`(
-     `device_name` bigint, 
-     `oil_level` double,
-     `temperature` double,
+   CREATE EXTERNAL TABLE `table_name`(
+     `column1` bigint, 
+     `column2` double,
+     `column3` double,
      `pressure` double,
-     `received_at` string,
-     `device_id` bigint)
+      .... 
+      )
    ```
    Replace `<api-gateway-endpoint>` with the actual API Gateway endpoint URL.
 10. Select "Functions" and add the function you created above.
@@ -127,4 +127,4 @@ Contributions are welcome! If you find any issues or have suggestions for improv
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more information.
+This project is licensed under the MIT License. See the [LICENSE](/LICENSE.txt) file for more information.
